@@ -1,5 +1,16 @@
 """
-PawPal+ logic layer — class skeletons derived from UML.
+PawPal+ Logic Layer — Pet Care Task Scheduling System.
+
+This module implements the core classes for managing pet care tasks and generating
+optimized daily schedules. It follows a clear separation of concerns:
+
+- Task: Represents a single care activity with priority and recurrence info.
+- Pet: Manages a pet's details and its associated tasks.
+- Owner: Aggregates multiple pets and provides unified task access.
+- Scheduler: Orchestrates task scheduling based on priority and time constraints.
+
+The Scheduler uses a priority-based algorithm to fit high-priority pet care tasks
+within an owner's available time budget, ensuring critical needs are met first.
 """
 
 from dataclasses import dataclass, field
@@ -92,6 +103,7 @@ class Owner:
 
 class Scheduler:
     def __init__(self, owner: Owner) -> None:
+        """Initialize scheduler with an owner and their available time budget."""
         self.owner = owner
         self.time_budget = owner.available_minutes
 
