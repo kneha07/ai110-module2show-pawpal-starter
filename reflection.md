@@ -47,13 +47,45 @@ Three core actions a user should be able to perform:
 
 **a. Constraints and priorities**
 
-- What constraints does your scheduler consider (for example: time, priority, preferences)?
-- How did you decide which constraints mattered most?
+The scheduler considers the following constraints:
+
+1. **Time Budget** (Primary) — All tasks must fit within the owner's available_minutes. This is the hard constraint that prevents over-scheduling.
+
+2. **Task Priority** (Primary) — Tasks are ranked 1-5, where 5 is "Critical" (e.g., feeding) and 1 is "Low" (e.g., optional play). Higher priority tasks are always scheduled first.
+
+3. **Task Duration** (Secondary) — Among equal-priority tasks, shorter tasks are scheduled first to maximize task count. This follows the "Shortest Job First" (SJF) algorithm principle.
+
+4. **Recurring Pattern** (Secondary) — Tasks marked as recurring automatically generate new occurrences when completed, enabling multi-day scheduling support.
+
+5. **Scheduled Time** (Tertiary, Phase 4) — Tasks with a specific scheduled_time (HH:MM format, e.g., "08:00") are preferred in order and checked for conflicts.
+
+**Design rationale:**
+- Time and priority are non-negotiable: a scheduler must respect the owner's availability and pet needs.
+- Duration matters after priority: scheduling 5 easy tasks is better than scheduling 1 hard task if both take the same total time and have equal priority.
+- Recurring patterns reduce manual re-entry: marking a task "recurring=True" with "daily" pattern automates tomorrow's plan.
+- Scheduled times add realism: some tasks (dog walks, feeding times) should happen at specific times, not randomly.
 
 **b. Tradeoffs**
 
-- Describe one tradeoff your scheduler makes.
-- Why is that tradeoff reasonable for this scenario?
+**Tradeoff 1: Time-Slot Conflict Detection (Exact Match Only)**
+- **What**: The scheduler detects conflicts when two tasks have identical scheduled_time values (e.g., both at "08:00"). It does NOT detect overlapping durations (e.g., "08:00-08:30" overlapping with "08:15-08:45" both scheduled for 8:00).
+- **Why reasonable**: Owners may want to run tasks in parallel (e.g., "start morning walk at 8:00, also feed at 8:00 — it takes 5 minutes so finish at 8:05"). Exact-time matching identifies clear conflicts without over-constraining. Full duration overlap detection would be complex and may not match real pet-care workflows.
+- **Trade**: Simplicity vs. precision. We chose simplicity to keep the code maintainable and the UX clear.
+
+**Tradeoff 2: Greedy Priority-Based Scheduling (vs. Optimal Bin Packing)**
+- **What**: `generate_plan()` uses a greedy "sort by priority, then by duration" approach and stuffs tasks into the time budget from highest to lowest priority. This does NOT guarantee the globally optimal assignment (e.g., it may reject a low-priority 60-minute task even though swapping two medium-priority tasks could fit more total time).
+- **Why reasonable**: Pet care is inherently ordered: critical needs (feeding) > high needs (walks) > nice-to-haves (play). A greedy approach respects this human priority order and produces a defensible, understandable plan. The owner can see exactly why each task was chosen.
+- **Trade**: Optimality vs. transparency. We chose transparency because pet owners need to trust and understand the schedule, not just see the "mathematically optimal" solution.
+
+**Tradeoff 3: Shallow Task Filtering (vs. Complex Query Language)**
+- **What**: The scheduler offers simple filter methods (`filter_tasks_by_status()`, `filter_tasks_by_pet()`, `filter_tasks_by_priority()`) that are Boolean AND operations on single fields. It does NOT support complex queries like "all critical tasks for Max that are not completed" in a single call.
+- **Why reasonable**: Pet care use cases are simple (list Max's tasks, show pending tasks, etc.). Adding a query language (e.g., SQL-like filtering) would over-engineer for the current scope. Users can compose filters in Python if needed.
+- **Trade**: Expressiveness vs. simplicity. We chose simplicity to keep the API discoverable and the code maintainable.
+
+**Tradeoff 4: Recurring Task Cloning (Deep Copy vs. Factory Pattern)**
+- **What**: `create_next_occurrence()` uses `deepcopy()` to clone a recurring task, preserving all attributes and resetting status. It does NOT use a factory pattern or template method.
+- **Why reasonable**: Recurring tasks should inherit all properties (duration, priority, recurring flag, scheduled_time) from the completed task. A deep copy preserves this naturally. A factory pattern would require more boilerplate and would be overkill for simple duplication.
+- **Trade**: Simplicity vs. extensibility. We chose simplicity because recurring tasks are simple at this stage.
 
 ---
 
