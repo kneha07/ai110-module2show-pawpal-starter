@@ -96,7 +96,16 @@ classDiagram
 
 ## 📸 Demo
 
-<a href="/course_images/ai110/pawpal_screenshot.png" target="_blank"><img src='/course_images/ai110/pawpal_screenshot.png' title='PawPal App' width='' alt='PawPal App' class='center-block' /></a>
+<a href="pawpal_screenshot.png" target="_blank"><img src='pawpal_screenshot.png' title='PawPal+ Final App with All Challenges' width='100%' alt='PawPal+ Final App' class='center-block' /></a>
+
+**Features visible in demo:**
+- Owner setup with time budget (120 min/day)
+- Pet management (add multiple pets)
+- Task creation with priority levels (color-coded emojis)
+- Professional tabulate-formatted task tables
+- Schedule generation with conflict detection
+- Data persistence (Save/Load buttons)
+- Challenge 1: Find next available slot algorithm
 
 ---
 
