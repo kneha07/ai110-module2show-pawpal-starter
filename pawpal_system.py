@@ -17,11 +17,19 @@ Phase 4 Enhancements:
 - Filtering tasks by status or pet
 - Automatic recurring task creation
 - Advanced conflict detection
+
+Phase 5+ Enhancements:
+- Challenge 1: Advanced algorithmic capability (next_available_slot finder)
+- Challenge 2: Data persistence with JSON serialization
+- Challenge 3: Priority-based scheduling UI
+- Challenge 4: Professional output formatting
 """
 
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass, field, asdict
+from typing import Optional, Dict, Any
 from copy import deepcopy
+import json
+from datetime import datetime
 
 
 @dataclass
@@ -128,6 +136,95 @@ class Owner:
         """Calculate total time needed for all tasks across all pets."""
         all_tasks = self.get_all_tasks()
         return sum(task.duration_minutes for task in all_tasks)
+
+    def save_to_json(self, filepath: str) -> bool:
+        """
+        Serialize owner, pets, and tasks to a JSON file for persistence.
+        Challenge 2: Data Persistence with Agent Mode.
+        
+        Returns True if successful, False otherwise.
+        """
+        try:
+            data = {
+                "owner": {
+                    "name": self.name,
+                    "available_minutes": self.available_minutes
+                },
+                "pets": []
+            }
+            
+            for pet in self.pets:
+                pet_data = {
+                    "name": pet.name,
+                    "species": pet.species,
+                    "age": pet.age,
+                    "tasks": []
+                }
+                
+                for task in pet.tasks:
+                    task_data = {
+                        "name": task.name,
+                        "duration_minutes": task.duration_minutes,
+                        "priority": task.priority,
+                        "recurring": task.recurring,
+                        "recurrence_pattern": task.recurrence_pattern,
+                        "status": task.status,
+                        "scheduled_time": task.scheduled_time
+                    }
+                    pet_data["tasks"].append(task_data)
+                
+                data["pets"].append(pet_data)
+            
+            with open(filepath, 'w') as f:
+                json.dump(data, f, indent=2)
+            return True
+        except Exception as e:
+            print(f"Error saving to JSON: {e}")
+            return False
+
+    @staticmethod
+    def load_from_json(filepath: str) -> Optional["Owner"]:
+        """
+        Deserialize owner, pets, and tasks from a JSON file.
+        Challenge 2: Data Persistence with Agent Mode.
+        
+        Returns an Owner object if successful, None otherwise.
+        """
+        try:
+            with open(filepath, 'r') as f:
+                data = json.load(f)
+            
+            owner_data = data.get("owner", {})
+            owner = Owner(
+                name=owner_data.get("name", "Unknown"),
+                available_minutes=owner_data.get("available_minutes", 120)
+            )
+            
+            for pet_data in data.get("pets", []):
+                pet = Pet(
+                    name=pet_data.get("name", ""),
+                    species=pet_data.get("species", ""),
+                    age=pet_data.get("age", 0)
+                )
+                
+                for task_data in pet_data.get("tasks", []):
+                    task = Task(
+                        name=task_data.get("name", ""),
+                        duration_minutes=task_data.get("duration_minutes", 0),
+                        priority=task_data.get("priority", 3),
+                        recurring=task_data.get("recurring", False),
+                        recurrence_pattern=task_data.get("recurrence_pattern"),
+                        status=task_data.get("status", "pending"),
+                        scheduled_time=task_data.get("scheduled_time")
+                    )
+                    pet.add_task(task)
+                
+                owner.add_pet(pet)
+            
+            return owner
+        except Exception as e:
+            print(f"Error loading from JSON: {e}")
+            return None
 
 
 class Scheduler:
@@ -262,3 +359,77 @@ class Scheduler:
         )
         
         return explanation
+
+    def find_next_available_slot(self, task_duration: int) -> Dict[str, Any]:
+        """
+        Challenge 1: Advanced Algorithmic Capability via Agent Mode.
+        
+        Find the next available time slot(s) where a task of given duration can fit.
+        Uses weighted prioritization to suggest the best scheduling option.
+        
+        Returns a dict with:
+        - 'feasible': bool indicating if task can fit
+        - 'earliest_slot': (start_time, end_time_minutes) for next available slot
+        - 'recommendation': human-readable suggestion
+        - 'alternative_slots': list of other possible slots
+        - 'priority_score': weighted score for scheduling
+        """
+        plan = self.generate_plan()
+        
+        # Calculate used time from current plan
+        used_minutes = sum(task.duration_minutes for task in plan)
+        available_minutes = self.time_budget - used_minutes
+        
+        # Check if task fits at all
+        if task_duration > self.time_budget:
+            return {
+                'feasible': False,
+                'earliest_slot': None,
+                'recommendation': f"Task duration ({task_duration} min) exceeds daily budget ({self.time_budget} min).",
+                'alternative_slots': [],
+                'priority_score': 0
+            }
+        
+        # Find alternative scheduling options
+        alternative_slots = []
+        
+        # Option 1: Fit in remaining time after current plan
+        if task_duration <= available_minutes:
+            earliest_start = used_minutes
+            earliest_end = earliest_start + task_duration
+            feasible = True
+            priority_score = 100  # Best option (fits in remaining time)
+        else:
+            feasible = False
+            earliest_start = None
+            earliest_end = None
+            priority_score = 0
+            
+            # If doesn't fit immediately, find by rescheduling low-priority tasks
+            low_priority_tasks = [t for t in plan if t.priority <= 2]
+            replaceable_time = sum(t.duration_minutes for t in low_priority_tasks)
+            
+            if task_duration <= available_minutes + replaceable_time:
+                feasible = True
+                priority_score = 50  # Requires rescheduling
+                alternative_slots.append({
+                    'description': 'Reschedule low-priority tasks',
+                    'time_needed': task_duration - available_minutes,
+                    'replace_count': len(low_priority_tasks)
+                })
+        
+        recommendation = (
+            f"✅ Task can fit immediately (starts at {earliest_start} min)"
+            if feasible and priority_score == 100
+            else f"⚠️ Task (requires rescheduling or split scheduling"
+            if feasible and priority_score <= 50
+            else "❌ Task doesn't fit in current schedule"
+        )
+        
+        return {
+            'feasible': feasible,
+            'earliest_slot': (earliest_start, earliest_end) if feasible and priority_score == 100 else None,
+            'recommendation': recommendation,
+            'alternative_slots': alternative_slots,
+            'priority_score': priority_score
+        }

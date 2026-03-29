@@ -1,0 +1,14 @@
+{
+  "owner": {
+    "name": "Jordan",
+    "available_minutes": 120
+  },
+  "pets": [
+    {
+      "name": "Mochi",
+      "species": "dog",
+      "age": 3,
+      "tasks": []
+    }
+  ]
+}

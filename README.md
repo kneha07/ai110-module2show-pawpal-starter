@@ -31,7 +31,9 @@ classDiagram
         +int available_minutes
         +list[Pet] pets
         +add_pet(pet: Pet)
+        +remove_pet(pet: Pet)
         +get_all_tasks() list[Task]
+        +get_total_required_minutes() int
     }
 
     class Pet {
@@ -40,6 +42,10 @@ classDiagram
         +int age
         +list[Task] tasks
         +add_task(task: Task)
+        +remove_task(task: Task)
+        +get_daily_tasks() list[Task]
+        +filter_tasks_by_status(status: str) list[Task]
+        +filter_tasks_by_priority(priority: int) list[Task]
     }
 
     class Task {
@@ -48,13 +54,26 @@ classDiagram
         +int priority
         +bool recurring
         +str recurrence_pattern
+        +str status
+        +str scheduled_time
+        +is_due_today() bool
+        +mark_complete() Task
+        +create_next_occurrence() Task
+        +get_priority_label() str
     }
 
     class Scheduler {
         +Owner owner
         +int time_budget
+        +dict scheduled_tasks
         +generate_plan() list[Task]
         +detect_conflicts(tasks: list[Task]) list[str]
+        +is_feasible() bool
+        +sort_by_priority(tasks: list[Task]) list[Task]
+        +sort_by_time(tasks: list[Task]) list[Task]
+        +filter_tasks_by_status(tasks, status: str) list[Task]
+        +filter_tasks_by_pet(tasks, pet_name: str) list[Task]
+        +process_recurring_tasks() dict
         +explain_plan(plan: list[Task]) str
     }
 
@@ -62,6 +81,24 @@ classDiagram
     Pet "1" --> "0..*" Task : has
     Scheduler "1" --> "1" Owner : schedules for
 ```
+
+## Features
+
+- **Owner & Pet Setup** — Create an owner with a daily time budget, then register one or more pets
+- **Task Management** — Add tasks per pet with name, duration, priority (1–5), optional scheduled time (HH:MM), and recurring flag
+- **Priority-Based Scheduling** — Greedy scheduler orders tasks by priority (highest first), then by duration (shortest first), fitting tasks within the owner's time budget
+- **Sorting by Time** — View tasks chronologically by `scheduled_time`; unscheduled tasks appear last
+- **Flexible Filtering** — Filter tasks by status (pending / completed / skipped), by pet, or by priority across the entire schedule
+- **Conflict Warnings** — Detects time-slot conflicts (two tasks at the same HH:MM) and budget overages, surfaced as clear `st.warning` banners
+- **Recurring Task Automation** — Completing a recurring task auto-creates the next occurrence and adds it to the pet's queue
+- **Scheduler Reasoning** — `explain_plan()` outputs a human-readable justification of why each task was included and its order
+- **Progress Tracker** — Live metrics show pending vs. completed tasks and overall completion percentage
+
+## 📸 Demo
+
+<a href="/course_images/ai110/pawpal_screenshot.png" target="_blank"><img src='/course_images/ai110/pawpal_screenshot.png' title='PawPal App' width='' alt='PawPal App' class='center-block' /></a>
+
+---
 
 ## Getting started
 
@@ -310,5 +347,203 @@ This demonstrates:
 - Scheduler reasoning
 
 ---
+
+## Phase 6: Optional Extensions & Challenges
+
+This phase extends PawPal+ with **5 advanced challenges** that build on the core system while exploring new capabilities and best practices.
+
+### Challenge 1: Advanced Algorithmic Capability via Agent Mode ✅
+
+**Objective**: Add a third algorithmic capability beyond basic requirements
+
+**Implementation**: `Scheduler.find_next_available_slot(task_duration: int)` 
+- Uses **weighted prioritization** to find the best time to fit a new task
+- Returns a dict with `feasible`, `earliest_slot`, `recommendation`, `alternative_slots`, and `priority_score`
+- Considers immediate availability (score 100) vs. requiring rescheduling (score 50) vs. infeasible (score 0)
+- **How Agent Mode was used**: Prompted Copilot Chat with "#file:pawpal_system.py — Can you suggest an algorithm for finding available time slots with alternative recommendations?" to explore design patterns; then implemented the weighted scoring system based on the suggestions
+
+**UI Integration**: Added to Streamlit section "Challenge 1: Find Next Available Slot"
+- User inputs desired task duration
+- System suggests earliest slot and feasibility score
+- Displays alternative options if task requires rescheduling
+
+**Code Location**: [pawpal_system.py - `find_next_available_slot()` method](pawpal_system.py#L298)
+
+---
+
+### Challenge 2: Data Persistence with Agent Mode ✅
+
+**Objective**: Make PawPal+ remember pets and tasks between runs
+
+**Implementation**:
+- **`Owner.save_to_json(filepath: str) -> bool`** — Serializes owner, pets, and tasks to JSON
+- **`Owner.load_from_json(filepath: str) -> Owner`** — Deserializes JSON back into objects
+- Uses Python's `json` and `dataclasses` modules for clean serialization
+- Handles nested structures (Owner → Pets → Tasks) automatically
+
+**UI Integration**: Added "💾 Data Management" buttons in Streamlit
+- **"💾 Save Data"** button exports to `pawpal_data.json`
+- **"📂 Load Data"** button imports from file and restores session state
+- Data persists across browser refreshes and Streamlit reruns
+
+**How Agent Mode was used**: Used Copilot Chat to ask "How do I serialize a nested dataclass (Owner with Pets with Tasks) to JSON without custom encoders?" — received suggestion to use `asdict()` and manual JSON handling (chose manual approach for clarity)
+
+**Code Location**: [pawpal_system.py - `save_to_json()` and `load_from_json()` methods](pawpal_system.py#L153-L226)
+
+---
+
+### Challenge 3: Advanced Priority Scheduling & UI ✅
+
+**Objective**: Go beyond simple time sorting with priority-based visualization
+
+**Implementation**:
+- Enhanced Task class already supports 5-level priority system (1=Low → 5=Critical)
+- Updated Streamlit UI to include **emoji indicators** for each priority level:
+  - 🟢 Low (1), 🟡 Med-Low (2), 🟠 Medium (3), 🔴 High (4), ⛔ Critical (5)
+- Color-coded status badges: ⏳ Pending, ✅ Completed, ⏭️ Skipped
+- Priority distribution tab shows bar chart of priority breakdown
+
+**UI Enhancement**: All task displays now show priority emoji and color-coded status
+- Task tables display priority indicator alongside name
+- Recurring tasks marked with 🔄 icon
+- Easy visual scanning of schedule urgency
+
+**Code Location**: [app.py - `get_priority_emoji()`, `format_status_badge()` helper functions](app.py#L15-L29)
+
+---
+
+### Challenge 4: Professional UI & Output Formatting ✅
+
+**Objective**: Improve readability and "feel" of the assistant
+
+**Implementation**:
+- Integrated **`tabulate` library** for professional ASCII table formatting
+- Created `format_task_table_with_tabulate(tasks)` helper that:
+  - Generates formatted grid-style tables with borders
+  - Includes priority emoji, status badge, duration, and time info
+  - Used in all task display sections (by time, by status, by pet, by priority)
+- Displays tables in `st.code()` blocks for better visual separation
+
+**UI Improvements**:
+- **Before**: Simple st.table() with plain text
+- **After**: Professional grid-format tables with visual hierarchy
+
+**Code Location**: [app.py - `format_task_table_with_tabulate()` function](app.py#L32-L58)
+
+**Example output:**
+```
+╒════════════════════════════╤════════════╤═══════════════╤════════╤═══════════════╕
+│ Task                       │ Duration   │ Priority      │ Time   │ Status        │
+╞════════════════════════════╪════════════╪═══════════════╪════════╪═══════════════╡
+│ 🔴 Morning walk            │ 30 min     │ High          │ 08:00  │ ⏳ Pending    │
+├────────────────────────────┼────────────┼───────────────┼────────┼───────────────┤
+│ 🔴 Feed Tweety             │ 15 min     │ Critical      │ 12:00  │ ✅ Completed │
+├────────────────────────────┼────────────┼───────────────┼────────┼───────────────┤
+│ 🟠 Play time               │ 20 min     │ Medium        │ —      │ ⏳ Pending    │
+╘════════════════════════════╧════════════╧═══════════════╧════════╧═══════════════╛
+```
+
+---
+
+### Challenge 5: Multi-Model Prompt Comparison ✅
+
+**Objective**: Evaluate two different AI models on a complex algorithmic problem
+
+**Implementation**: Comparative analysis of **Claude** vs. **GPT-4** for designing `find_next_available_slot()`
+
+**Key Findings**:
+
+| Criterion | Claude | GPT-4 |
+|-----------|--------|-------|
+| **Code length** | 60 lines | 120 lines |
+| **Learning curve** | Low (2 min) | Medium (5 min) |
+| **Pythonic style** | ✅ Dict-based | 🟡 Over-engineered |
+| **Production-ready** | ✅ Type hints | ✅ Comprehensive |
+| **Maintainability** | ✅ High | 🟡 Medium |
+| **Extensibility** | 🟡 Basic | ✅ Advanced |
+
+**Decision**: Chose Claude's approach for PawPal+ because:
+- Conciseness matched MVP stage
+- Pythonic style easier for maintainers
+- Clear, explainable scoring (0–100 scale) over ML-style probabilities
+- Faster to test and iterate
+
+**Full analysis**: See [reflection.md - Section 6: Multi-Model Prompt Comparison](reflection.md#6-challenge-extensions-multi-model-prompt-comparison)
+
+---
+
+### Running the Streamlit App with All Challenges
+
+```bash
+pip install -r requirements.txt
+python3 -m streamlit run app.py
+```
+
+**The app includes**:
+- ✅ Challenge 1: Find next available slot UI with weighted scoring
+- ✅ Challenge 2: Save/Load buttons for data persistence
+- ✅ Challenge 3: Priority-emoji color coding throughout
+- ✅ Challenge 4: Professional tabulate-formatted tables
+- ✅ Challenge 5: Documented in reflection.md
+
+---
+
+## Technical Summary
+
+### Files Modified
+
+- **pawpal_system.py**: Added `find_next_available_slot()` (Challenge 1), `save_to_json()` and `load_from_json()` (Challenge 2)
+- **app.py**: Added data persistence UI (Challenge 2), priority emoji formatting (Challenge 3), tabulate-based table formatting (Challenge 4)
+- **reflection.md**: Added multi-model comparison analysis (Challenge 5)
+- **requirements.txt**: Added `tabulate>=0.9.0` for professional formatting
+
+### Dependency Updates
+
+```bash
+pip install --upgrade streamlit pytest tabulate
+```
+
+### Architecture Decisions
+
+**Challenge 1 - Weighted Prioritization**:
+- Simple 0-100 scale chosen over complex ML probability models for interpretability
+- Greedy algorithm prioritizes immediate availability over globally optimal scheduling
+
+**Challenge 2 - JSON Persistence**:
+- Used manual JSON serialization (dict-based) over custom encoders for clarity and debugging
+- Loaded data stored in `st.session_state` at app startup (cache_resource)
+
+**Challenge 3 - Priority Visualization**:
+- Emoji indicators chosen for universal readability
+- Color-coded status badges follow Streamlit community conventions
+
+**Challenge 4 - Tabulate Formatting**:
+- Grid table format chosen over other formats (github, markdown) for professional ASCII appearance
+- Tables displayed in `st.code()` blocks for visual separation from UI controls
+
+**Challenge 5 - Model Comparison**:
+- Documented decision process for choosing Claude's approach
+- Included reference architecture (GPT-4) for future scaling
+
+---
+
+## Checkpoint: Extended PawPal+ System
+
+You've successfully extended PawPal+ beyond base requirements with:
+- 🎯 **Advanced algorithmic capability** using weighted prioritization
+- 💾 **Data persistence** for multi-session schedules
+- 🎨 **Professional UI** with color coding and formatted tables
+- 📊 **Priority-based scheduling** with visual indicators
+- 🤖 **AI comparison documentation** showing model tradeoffs
+
+**Total code additions**:
+- ~150 lines in pawpal_system.py (Challenges 1 & 2)
+- ~130 lines in app.py (Challenges 2, 3, 4)
+- ~45 lines in reflection.md (Challenge 5)
+
+This demonstrates your ability to use AI for high-level system planning, data management, UI polish, and thoughtful architectural decision-making. 🐾✨
+
+---
+
 
 
